@@ -1300,6 +1300,7 @@ def clone(value):
     return value.copy() if is_list(value) or is_dict(value) else value
 
 
+<<<<<<< HEAD
 def clone_shell_value(target, key, value):
     if is_str(value):
         target[key] = shlex.split(value)
@@ -1312,6 +1313,17 @@ def check_shell_value_type(key, value):
         raise ValueError(
             f"can't merge value of [{key}]: must be a string or a list of strings"
         )
+=======
+def parse_build(build):
+    build_parsed = {}
+    if is_str(build):
+        build_parsed["context"] = build
+    elif is_dict(build):
+        build_parsed = build
+    else:
+        raise ValueError(f"invalid type of build value [{type(build)}]")
+    return build_parsed
+>>>>>>> allow-config-to-merge-strings-and-dicts-in-build
 
 
 def rec_merge_one(target, source):
@@ -1325,6 +1337,8 @@ def rec_merge_one(target, source):
         if key in ("command", "entrypoint"):
             check_shell_value_type(key, value)
             clone_shell_value(target, key, value)
+        elif key == "build":
+            target[key] = parse_build(value)
         else:
             target[key] = clone(value)
         done.add(key)
@@ -1338,6 +1352,13 @@ def rec_merge_one(target, source):
             else:
                 check_shell_value_type(key, source[key])
                 clone_shell_value(target, key, source[key])
+            continue
+        if key == "build":
+            target_parsed = parse_build(value)
+            source_parsed = {}
+            if key in source:
+                source_parsed = parse_build(source[key])
+            target["build"] = rec_merge_one(target_parsed, source_parsed)
             continue
         if key not in source:
             continue
