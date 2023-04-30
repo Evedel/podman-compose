@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # https://docs.docker.com/compose/compose-file/#service-configuration-reference
@@ -24,6 +24,7 @@ import json
 import glob
 
 from threading import Thread
+from pathlib import Path
 
 import shlex
 
@@ -1287,6 +1288,28 @@ def normalize(compose):
     return compose
 
 
+def normalize_service_final(service: dict, project_dir: str) -> dict:
+    if "build" in service:
+        build = service["build"]
+        context = build if is_str(build) else build.get("context", ".")
+        context = str((Path(project_dir) / context).resolve())
+        dockerfile = "Dockerfile"
+        if "dockerfile" in service["build"]:
+            dockerfile = service["build"]["dockerfile"]
+        if not is_dict(service["build"]):
+            service["build"] = {}
+        service["build"]["dockerfile"] = dockerfile
+        service["build"]["context"] = context
+    return service
+
+
+def normalize_final(compose: dict, project_dir: str) -> dict:
+    services = compose.get("services", None) or {}
+    for service in services.values():
+        normalize_service_final(service, project_dir)
+    return compose
+
+
 def clone(value):
     return value.copy() if is_list(value) or is_dict(value) else value
 
@@ -1615,6 +1638,7 @@ class PodmanCompose:
         )
         service_names = [name for _, name in service_names]
         resolve_extends(services, service_names, self.environ)
+        compose = normalize_final(compose, self.dirname)
         flat_deps(services)
         service_names = sorted(
             [(len(srv["_deps"]), name) for name, srv in services.items()]
